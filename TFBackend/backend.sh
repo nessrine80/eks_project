@@ -49,15 +49,4 @@ aws dynamodb create-table \
   --billing-mode PAY_PER_REQUEST 2>/dev/null
 
 echo "✅ Done! You can now use the following Terraform backend config:"
-# cat <<EOF
 
-# terraform {
-#   backend "s3" {
-#     bucket         = "$BUCKET_NAME"
-#     key            = "$STATE_KEY"
-#     region         = "$REGION"
-#     dynamodb_table = "$DYNAMO_TABLE"
-#     encrypt        = true
-#   }
-# }
-# EOF
