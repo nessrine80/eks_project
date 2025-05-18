@@ -1,4 +1,3 @@
-
 # 🚀 LLM-on-AWS Project
 
 This project deploys a backend application using GitHub Actions CI/CD pipelines, Docker, Kubernetes, and Terraform on AWS. The pipelines handle building, pushing, deploying, and destroying infrastructure and application resources automatically.
@@ -109,9 +108,121 @@ cd infra
 terraform destroy -auto-approve
 ```
 
+---
 
+## 📊 Monitoring with Prometheus & Grafana
 
+### Prerequisites
 
+Before starting, ensure you have:
 
+- A running EKS cluster with `kubectl` configured to interact with it.
+- Helm installed on your local machine.
 
+If you don’t have Helm installed, you can install it with:
 
+```bash
+curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
+```
+
+---
+
+### Step 1: Add Prometheus and Grafana Helm Repositories
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+```
+
+---
+
+### Step 2: Install Prometheus in Your EKS Cluster
+
+```bash
+helm install prometheus prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --create-namespace
+```
+
+---
+
+### Step 3: Install Grafana in Your EKS Cluster
+
+```bash
+helm install grafana grafana/grafana \
+  --namespace monitoring
+```
+
+---
+
+### Step 4: Patch Grafana Service for LoadBalancer Access
+
+```bash
+kubectl patch svc prometheus-grafana \
+  -n monitoring \
+  --type merge \
+  -p '{
+    "spec": {
+      "type": "LoadBalancer",
+      "ports": [
+        {
+          "name": "http",
+          "protocol": "TCP",
+          "port": 80,
+          "targetPort": 3000
+        }
+      ]
+    }
+  }'
+```
+
+---
+
+### Step 5: Retrieve Grafana Admin Password
+
+```bash
+kubectl get secret --namespace monitoring prometheus-grafana \
+  -o jsonpath="{.data.admin-password}" | base64 --decode && echo
+```
+
+---
+
+### Step 6: Test Prometheus Connectivity from Grafana Pod
+
+```bash
+kubectl exec -n monitoring -it $(kubectl get pod -n monitoring -l app.kubernetes.io/name=grafana -o jsonpath="{.items[0].metadata.name}") -- curl -s http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+```
+
+---
+
+### Step 7: Add Prometheus as a Data Source in Grafana
+
+1. Go to **Grafana → Configuration → Data Sources → Add Data Source**.
+2. Choose **Prometheus**.
+3. Set the URL to:
+
+```
+http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+```
+
+4. Click **Save & Test**.
+
+---
+
+### Step 8: Import Grafana Dashboards
+
+- Go to **Create → Import**
+- Use dashboard IDs from https://grafana.com/grafana/dashboards/
+- Example: Kubernetes, EKS, or Node Exporter dashboards
+---
+
+## 📈 Kubernetes Metrics Server
+
+To install the Metrics Server (for `kubectl top nodes` and `kubectl top pods` to work):
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/techiescamp/kubeadm-scripts/main/manifests/metrics-server.yaml
+```
+
+> 📌 This command deploys Metrics Server version `v0.7.1` to your cluster.
