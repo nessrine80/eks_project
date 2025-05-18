@@ -1,9 +1,12 @@
+# 🚀 LLM-on-AWS Project
 
-# ⚙️ Initial Terraform Backend Setup
+This project deploys a backend application using GitHub Actions CI/CD pipelines, Docker, Kubernetes, and Terraform on AWS. The pipelines handle building, pushing, deploying, and destroying infrastructure and application resources automatically.
+
+---
+
+## ⚙️ Initial Terraform Backend Setup
 
 Before doing anything else in this project, you must first create your Terraform S3 backend and DynamoDB lock table using the script below.
-
-Save and run this script to provision your remote backend infrastructure:
 
 ```bash
 #!/bin/bash
@@ -27,7 +30,6 @@ else
     --create-bucket-configuration LocationConstraint="$REGION"
 fi
 
-# Wait until bucket is available
 echo "⏳ Waiting for bucket to exist..."
 until aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; do
   sleep 2
@@ -56,34 +58,25 @@ aws dynamodb create-table \
   --key-schema AttributeName=LockID,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST 2>/dev/null
 
-echo "✅ Done! You can now use the following Terraform backend config:"
+echo "✅ Done! Terraform backend infrastructure is ready."
 ```
-
----
-
-# 🚀 LLM-on-AWS Project
-
-This project deploys a backend application using GitHub Actions CI/CD pipelines, Docker, Kubernetes, and Terraform on AWS. The pipelines handle building, pushing, deploying, and destroying infrastructure and application resources automatically.
 
 ---
 
 ## 📁 Project Structure
 
-```
+```text
 project/
-│
 ├── .github/workflows/          # GitHub Actions pipelines
 │   ├── build_push.yml          # Builds & pushes Docker image
 │   ├── k8s_deploy.yml          # Deploys app to Kubernetes
 │   ├── terraform_deployment.yml# Provisions AWS infrastructure
 │   └── terraform_destroy.yml   # Destroys AWS infrastructure
-│
 ├── app/
 │   ├── backend/                # Python Flask backend
 │   │   ├── app.py              # Main application
 │   │   └── config.py           # App config
 │   └── Dockerfile              # Containerize app
-│
 ├── infra/                      # Terraform code
 │   ├── main.tf                 # Terraform resources
 │   └── variables.tf            # Terraform variables
@@ -105,21 +98,10 @@ project/
 
 ## ⚙️ CI/CD Pipelines Overview
 
-### ✅ 1. `build_push.yml`
-- Triggered on: Push to `main` branch.
-- Action: Builds Docker image, logs into AWS ECR, and pushes the image.
-
-### ✅ 2. `terraform_deployment.yml`
-- Triggered when commit message starts with `terraform apply`
-- Action: Initializes Terraform and applies AWS infrastructure.
-
-### ✅ 3. `terraform_destroy.yml`
-- Triggered when commit message starts with `terraform destroy`
-- Action: Runs `terraform destroy` to clean up resources.
-
-### ✅ 4. `k8s_deploy.yml`
-- Triggered when commit message starts with `k8s deploy`
-- Action: Applies Kubernetes manifests and deploys backend service.
+- `build_push.yml`: Builds Docker image and pushes to ECR
+- `terraform_deployment.yml`: Provisions AWS infra via Terraform
+- `terraform_destroy.yml`: Destroys AWS infra
+- `k8s_deploy.yml`: Deploys the app to Kubernetes
 
 ---
 
@@ -128,44 +110,46 @@ project/
 ### Prerequisites:
 - Docker
 - Python 3
-- AWS CLI (with configured credentials)
+- AWS CLI (configured)
 - Terraform
 - kubectl
 
-### 1. Build & Run Locally
+### Run the App Locally
+
 ```bash
 cd app
 docker build -t llm:v1 .
 docker run -p 8080:8080 llm:v1
 ```
 
-### 2. Deploy with Terraform
+### Deploy Infrastructure
+
 ```bash
 cd infra
 terraform init
 terraform apply -auto-approve
 ```
 
-### 3. Deploy to Kubernetes
+### Deploy to Kubernetes
+
 ```bash
 kubectl apply -f k8s/
 ```
 
 ---
 
-## 🚀 GitHub Actions Usage
+## 🚀 GitHub Actions Triggers
 
-To trigger specific pipelines, use **commit messages**:
+Use these commit messages when pushing to `main`:
 
-- `terraform apply`: Triggers infrastructure creation
-- `terraform destroy`: Triggers infrastructure destruction
-- `k8s deploy`: Triggers Kubernetes deployment
-
-> 💡 These pipelines run only when pushed to the `main` branch.
+- `terraform apply`
+- `terraform destroy`
+- `k8s deploy`
 
 ---
 
-## 🧼 Destroy Resources
+## 🧼 Tear Down Infrastructure
+
 ```bash
 cd infra
 terraform destroy -auto-approve
@@ -177,20 +161,10 @@ terraform destroy -auto-approve
 
 ### Prerequisites
 
-Before starting, ensure you have:
+- EKS cluster configured with `kubectl`
+- Helm installed
 
-- A running EKS cluster with `kubectl` configured to interact with it.
-- Helm installed on your local machine.
-
-If you don’t have Helm installed, you can install it with:
-
-```bash
-curl https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash
-```
-
----
-
-### Step 1: Add Prometheus and Grafana Helm Repositories
+### 1. Add Repositories
 
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -198,9 +172,7 @@ helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
 ```
 
----
-
-### Step 2: Install Prometheus in Your EKS Cluster
+### 2. Install Prometheus Stack
 
 ```bash
 helm install prometheus prometheus-community/kube-prometheus-stack \
@@ -208,18 +180,14 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
   --create-namespace
 ```
 
----
-
-### Step 3: Install Grafana in Your EKS Cluster
+### 3. Install Grafana
 
 ```bash
 helm install grafana grafana/grafana \
   --namespace monitoring
 ```
 
----
-
-### Step 4: Patch Grafana Service for LoadBalancer Access
+### 4. Patch Grafana Service (LoadBalancer)
 
 ```bash
 kubectl patch svc prometheus-grafana \
@@ -240,52 +208,42 @@ kubectl patch svc prometheus-grafana \
   }'
 ```
 
----
-
-### Step 5: Retrieve Grafana Admin Password
+### 5. Get Grafana Password
 
 ```bash
 kubectl get secret --namespace monitoring prometheus-grafana \
   -o jsonpath="{.data.admin-password}" | base64 --decode && echo
 ```
 
----
-
-### Step 6: Test Prometheus Connectivity from Grafana Pod
+### 6. Test Prometheus Access
 
 ```bash
 kubectl exec -n monitoring -it $(kubectl get pod -n monitoring -l app.kubernetes.io/name=grafana -o jsonpath="{.items[0].metadata.name}") -- curl -s http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
 ```
 
----
+### 7. Add Prometheus as a Grafana Data Source
 
-### Step 7: Add Prometheus as a Data Source in Grafana
-
-1. Go to **Grafana → Configuration → Data Sources → Add Data Source**.
-2. Choose **Prometheus**.
-3. Set the URL to:
+Use this URL:
 
 ```
 http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
 ```
 
-4. Click **Save & Test**.
-
 ---
 
-### Step 8: Import Grafana Dashboards
+### 8. Import Grafana Dashboards
 
 - Go to **Create → Import**
-- Use dashboard IDs from https://grafana.com/grafana/dashboards/
-- Example: Kubernetes, EKS, or Node Exporter dashboards
+- Use IDs from https://grafana.com/grafana/dashboards/
+
 ---
 
 ## 📈 Kubernetes Metrics Server
 
-To install the Metrics Server (for `kubectl top nodes` and `kubectl top pods` to work):
+Install Metrics Server to enable resource metrics:
 
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/techiescamp/kubeadm-scripts/main/manifests/metrics-server.yaml
 ```
 
-> 📌 This command deploys Metrics Server version `v0.7.1` to your cluster.
+> Version: `v0.7.1`
