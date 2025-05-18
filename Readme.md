@@ -247,3 +247,5 @@ kubectl apply -f https://raw.githubusercontent.com/techiescamp/kubeadm-scripts/m
 ```
 
 > Version: `v0.7.1`
+
+---
