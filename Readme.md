@@ -108,7 +108,7 @@ To trigger specific pipelines, use **commit messages**:
 cd infra
 terraform destroy -auto-approve
 ```
-
+---
 
 
 
